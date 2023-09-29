@@ -12,7 +12,6 @@ import android.os.Looper
 import android.util.Log
 import android.view.View
 import android.webkit.ConsoleMessage
-import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
@@ -43,7 +42,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
-        CookieManager.getInstance()
 
         webView = binding.webview
         if (isNetworkConnected()) {
@@ -57,7 +55,7 @@ class MainActivity : AppCompatActivity() {
                         request: WebResourceRequest?,
                         errorResponse: WebResourceResponse?
                     ) {
-                        Log.e("e-room", "Http Error : ${errorResponse?.data.toString()}")
+                        Log.e("e-room", "Http Error : $errorResponse")
                     }
 
                     override fun onReceivedSslError(
@@ -99,7 +97,7 @@ class MainActivity : AppCompatActivity() {
 
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
-                settings.userAgentString = "Chrome/56.0.0.0 Mobile"
+                settings.userAgentString = System.getProperty("http.agent")?.plus(applicationContext.packageName)
 
                 settings.setGeolocationEnabled(true)
             }
