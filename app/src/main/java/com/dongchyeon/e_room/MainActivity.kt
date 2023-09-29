@@ -1,22 +1,34 @@
 package com.dongchyeon.e_room
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.http.SslError
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import android.view.View
 import android.webkit.ConsoleMessage
+import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
+import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.dongchyeon.e_room.databinding.ActivityMainBinding
+import com.google.android.material.snackbar.Snackbar
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -30,53 +42,84 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+        CookieManager.getInstance()
+
         webView = binding.webview
+        if (isNetworkConnected()) {
 
-        with(webView) {
-            //loadUrl("https://m.map.naver.com/")
-            loadUrl("https://www.e-room.app/")
+            with(webView) {
+                loadUrl(BuildConfig.BASE_URL)
 
-            webViewClient = object : WebViewClient() {
-                override fun onReceivedError(
-                    view: WebView?,
-                    request: WebResourceRequest?,
-                    error: WebResourceError?
-                ) {
-                    Log.e("e-room", "Error : $error")
-                }
-            }
-            webChromeClient = object : WebChromeClient() {
-                override fun onGeolocationPermissionsShowPrompt(
-                    origin: String?,
-                    callback: GeolocationPermissions.Callback?
-                ) {
-                    super.onGeolocationPermissionsShowPrompt(origin, callback)
-                    callback?.invoke(origin, true, false)
-                    requestLocationPermission()
-                }
-
-                override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-                    consoleMessage?.apply {
-                        Log.d("e-room", "${message()} -- From line ${lineNumber()} of ${sourceId()}")
+                webViewClient = object : WebViewClient() {
+                    override fun onReceivedHttpError(
+                        view: WebView?,
+                        request: WebResourceRequest?,
+                        errorResponse: WebResourceResponse?
+                    ) {
+                        Log.e("e-room", "Http Error : ${errorResponse?.data.toString()}")
                     }
-                    return true
+
+                    override fun onReceivedSslError(
+                        view: WebView?,
+                        handler: SslErrorHandler?,
+                        error: SslError?
+                    ) {
+                        Log.e("e-room", "SSL Error : $error")
+                    }
+
+                    override fun onReceivedError(
+                        view: WebView?,
+                        request: WebResourceRequest?,
+                        error: WebResourceError?
+                    ) {
+                        Log.e("e-room", "Error : $error")
+                    }
                 }
+                webChromeClient = object : WebChromeClient() {
+                    override fun onGeolocationPermissionsShowPrompt(
+                        origin: String?,
+                        callback: GeolocationPermissions.Callback?
+                    ) {
+                        super.onGeolocationPermissionsShowPrompt(origin, callback)
+                        callback?.invoke(origin, true, false)
+                        requestLocationPermission()
+                    }
+
+                    override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                        consoleMessage?.apply {
+                            Log.d(
+                                "e-room",
+                                "${message()} -- From line ${lineNumber()} of ${sourceId()}"
+                            )
+                        }
+                        return true
+                    }
+                }
+
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.userAgentString = "Chrome/56.0.0.0 Mobile"
+
+                settings.setGeolocationEnabled(true)
             }
 
-            settings.javaScriptEnabled = true
-            settings.setGeolocationEnabled(true)
-        }
-
-        onBackPressedCallback = object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (webView.canGoBack()) {
-                    webView.goBack()
-                } else {
-                    finish()
+            onBackPressedCallback = object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (webView.canGoBack()) {
+                        webView.goBack()
+                    } else {
+                        finish()
+                    }
                 }
             }
+            onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
+        } else {
+            showSnackBar(binding.root, "인터넷이 연결되어 있지 않아 앱이 종료됩니다.")
+            Handler(Looper.getMainLooper()).postDelayed({
+                finish()
+            }, 1000)
         }
-        onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
     }
 
     private fun isLocationPermissionGranted(): Boolean {
@@ -102,5 +145,22 @@ class MainActivity : AppCompatActivity() {
                 ).show()
             }
         }
+    }
+
+    private fun showSnackBar(rootView: View, message: String) {
+        val snackBar = Snackbar.make(rootView, message, Snackbar.LENGTH_SHORT)
+        snackBar.show()
+    }
+
+    private fun isNetworkConnected(): Boolean {
+        val connectivityManager =
+            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+        val networkCapabilities = connectivityManager.activeNetwork ?: return false
+        val actNw =
+            connectivityManager.getNetworkCapabilities(networkCapabilities) ?: return false
+
+        return actNw.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                actNw.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
     }
 }
